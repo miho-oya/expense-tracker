@@ -8,3 +8,45 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ApiError {
+  error: string;
+}
+
+export interface ReceiptParseInput {
+  /** Base64 encoded image data (without data URI prefix) */
+  imageBase64: string;
+  /** MIME type of the image (e.g. image/jpeg, image/png) */
+  mimeType: string;
+}
+
+/**
+ * Suggested expense category
+ */
+export type ReceiptParseResultSuggestedCategory =
+  (typeof ReceiptParseResultSuggestedCategory)[keyof typeof ReceiptParseResultSuggestedCategory];
+
+export const ReceiptParseResultSuggestedCategory = {
+  food: "food",
+  transport: "transport",
+  shopping: "shopping",
+  entertainment: "entertainment",
+  utilities: "utilities",
+  medical: "medical",
+  other: "other",
+} as const;
+
+export interface ReceiptParseResult {
+  /** Total amount on the receipt */
+  amount: number;
+  /** ISO currency code (e.g. THB, JPY, USD) */
+  currency: string;
+  /** Date of the transaction in YYYY-MM-DD format */
+  date: string;
+  /** Name of the merchant or payee (translated to Japanese when possible) */
+  merchant: string;
+  /** Suggested expense category */
+  suggestedCategory: ReceiptParseResultSuggestedCategory;
+  /** Any additional notes extracted from the receipt */
+  rawNote?: string;
+}

@@ -5,18 +5,26 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  ApiError,
+  HealthStatus,
+  ReceiptParseInput,
+  ReceiptParseResult,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +107,90 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Uses AI vision to extract amount, date, merchant, and suggested category from a receipt screenshot.
+ * @summary Parse a receipt image
+ */
+export const getParseReceiptUrl = () => {
+  return `/api/receipts/parse`;
+};
+
+export const parseReceipt = async (
+  receiptParseInput: ReceiptParseInput,
+  options?: RequestInit,
+): Promise<ReceiptParseResult> => {
+  return customFetch<ReceiptParseResult>(getParseReceiptUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(receiptParseInput),
+  });
+};
+
+export const getParseReceiptMutationOptions = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof parseReceipt>>,
+    TError,
+    { data: BodyType<ReceiptParseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof parseReceipt>>,
+  TError,
+  { data: BodyType<ReceiptParseInput> },
+  TContext
+> => {
+  const mutationKey = ["parseReceipt"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof parseReceipt>>,
+    { data: BodyType<ReceiptParseInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return parseReceipt(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ParseReceiptMutationResult = NonNullable<
+  Awaited<ReturnType<typeof parseReceipt>>
+>;
+export type ParseReceiptMutationBody = BodyType<ReceiptParseInput>;
+export type ParseReceiptMutationError = ErrorType<ApiError>;
+
+/**
+ * @summary Parse a receipt image
+ */
+export const useParseReceipt = <
+  TError = ErrorType<ApiError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof parseReceipt>>,
+    TError,
+    { data: BodyType<ReceiptParseInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof parseReceipt>>,
+  TError,
+  { data: BodyType<ReceiptParseInput> },
+  TContext
+> => {
+  return useMutation(getParseReceiptMutationOptions(options));
+};

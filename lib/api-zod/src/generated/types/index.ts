@@ -6,4 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./apiError";
 export * from "./healthStatus";
+export * from "./receiptParseInput";
+export * from "./receiptParseResult";
+export * from "./receiptParseResultSuggestedCategory";

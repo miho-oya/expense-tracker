@@ -14,3 +14,42 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Uses AI vision to extract amount, date, merchant, and suggested category from a receipt screenshot.
+ * @summary Parse a receipt image
+ */
+export const ParseReceiptBody = zod.object({
+  imageBase64: zod
+    .string()
+    .describe("Base64 encoded image data (without data URI prefix)"),
+  mimeType: zod
+    .string()
+    .describe("MIME type of the image (e.g. image\/jpeg, image\/png)"),
+});
+
+export const ParseReceiptResponse = zod.object({
+  amount: zod.number().describe("Total amount on the receipt"),
+  currency: zod.string().describe("ISO currency code (e.g. THB, JPY, USD)"),
+  date: zod.string().describe("Date of the transaction in YYYY-MM-DD format"),
+  merchant: zod
+    .string()
+    .describe(
+      "Name of the merchant or payee (translated to Japanese when possible)",
+    ),
+  suggestedCategory: zod
+    .enum([
+      "food",
+      "transport",
+      "shopping",
+      "entertainment",
+      "utilities",
+      "medical",
+      "other",
+    ])
+    .describe("Suggested expense category"),
+  rawNote: zod
+    .string()
+    .optional()
+    .describe("Any additional notes extracted from the receipt"),
+});

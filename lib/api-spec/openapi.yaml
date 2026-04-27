@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: receipts
+    description: Receipt parsing operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /receipts/parse:
+    post:
+      operationId: parseReceipt
+      tags: [receipts]
+      summary: Parse a receipt image
+      description: Uses AI vision to extract amount, date, merchant, and suggested category from a receipt screenshot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptParseInput"
+      responses:
+        "200":
+          description: Parsed receipt data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptParseResult"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +66,57 @@ components:
           type: string
       required:
         - status
-
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    ReceiptParseInput:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64 encoded image data (without data URI prefix)
+        mimeType:
+          type: string
+          description: MIME type of the image (e.g. image/jpeg, image/png)
+      required:
+        - imageBase64
+        - mimeType
+    ReceiptParseResult:
+      type: object
+      properties:
+        amount:
+          type: number
+          description: Total amount on the receipt
+        currency:
+          type: string
+          description: ISO currency code (e.g. THB, JPY, USD)
+        date:
+          type: string
+          description: Date of the transaction in YYYY-MM-DD format
+        merchant:
+          type: string
+          description: Name of the merchant or payee (translated to Japanese when possible)
+        suggestedCategory:
+          type: string
+          enum:
+            - food
+            - transport
+            - shopping
+            - entertainment
+            - utilities
+            - medical
+            - other
+          description: Suggested expense category
+        rawNote:
+          type: string
+          description: Any additional notes extracted from the receipt
+      required:
+        - amount
+        - currency
+        - date
+        - merchant
+        - suggestedCategory
