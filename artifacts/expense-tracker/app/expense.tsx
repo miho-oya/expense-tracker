@@ -15,8 +15,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { CATEGORIES, type CategoryKey } from "@/constants/categories";
+import { type CategoryKey } from "@/constants/categories";
 import { useExpenses } from "@/contexts/ExpensesContext";
+import { useCategoriesList } from "@/hooks/useCategoryDef";
 import { useColors } from "@/hooks/useColors";
 import { formatDateJP, todayISO } from "@/utils/format";
 
@@ -26,6 +27,7 @@ export default function ExpenseScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id?: string }>();
   const editId = typeof params.id === "string" ? params.id : undefined;
+  const cats = useCategoriesList();
 
   const {
     draft,
@@ -300,7 +302,7 @@ export default function ExpenseScreen() {
 
         <Field label="カテゴリ">
           <View style={styles.catGrid}>
-            {CATEGORIES.map((cat) => {
+            {cats.map((cat) => {
               const active = cat.key === category;
               return (
                 <Pressable

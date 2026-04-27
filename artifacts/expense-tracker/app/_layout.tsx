@@ -16,6 +16,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ExpensesProvider } from "@/contexts/ExpensesContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -32,6 +33,14 @@ function RootLayoutNav() {
         options={{
           presentation: "modal",
           title: "出費",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="category-edit"
+        options={{
+          presentation: "modal",
+          title: "カテゴリ編集",
           headerShown: false,
         }}
       />
@@ -59,13 +68,15 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <ExpensesProvider>
-            <GestureHandlerRootView>
-              <KeyboardProvider>
-                <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </ExpensesProvider>
+          <SettingsProvider>
+            <ExpensesProvider>
+              <GestureHandlerRootView>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
+            </ExpensesProvider>
+          </SettingsProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

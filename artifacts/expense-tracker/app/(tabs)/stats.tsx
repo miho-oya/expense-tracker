@@ -10,8 +10,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CATEGORIES, getCategory } from "@/constants/categories";
+import { BudgetBar } from "@/components/BudgetBar";
 import { useExpenses } from "@/contexts/ExpensesContext";
+import { useSettings } from "@/contexts/SettingsContext";
+import { useCategoriesList } from "@/hooks/useCategoryDef";
 import { useColors } from "@/hooks/useColors";
 import {
   formatAmount,
@@ -24,6 +26,8 @@ export default function StatsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { expenses } = useExpenses();
+  const { monthlyBudget } = useSettings();
+  const cats = useCategoriesList();
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? 67 : insets.top;
 
@@ -39,6 +43,7 @@ export default function StatsScreen() {
   const [selectedMonth, setSelectedMonth] = useState<string>(months[0]);
   const activeMonth =
     months.includes(selectedMonth) ? selectedMonth : months[0];
+  const isCurrentMonth = activeMonth === getMonthKey(todayISO());
 
   const { breakdown, total } = useMemo(() => {
     const byCat = new Map<string, number>();
@@ -53,14 +58,15 @@ export default function StatsScreen() {
       byCat.set(e.category, (byCat.get(e.category) ?? 0) + e.amount);
       total += e.amount;
     }
-    const breakdown = CATEGORIES.map((cat) => ({
-      cat,
-      amount: byCat.get(cat.key) ?? 0,
-    }))
+    const breakdown = cats
+      .map((cat) => ({
+        cat,
+        amount: byCat.get(cat.key) ?? 0,
+      }))
       .filter((row) => row.amount > 0)
       .sort((a, b) => b.amount - a.amount);
     return { breakdown, total };
-  }, [expenses, activeMonth]);
+  }, [expenses, activeMonth, cats]);
 
   const monthCount = useMemo(() => {
     return expenses.filter(
@@ -146,6 +152,9 @@ export default function StatsScreen() {
           >
             {monthCount}件の出費
           </Text>
+          {isCurrentMonth && monthlyBudget != null && monthlyBudget > 0 && (
+            <BudgetBar spent={total} budget={monthlyBudget} />
+          )}
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
@@ -280,7 +289,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginTop: 4,
     marginBottom: 24,
-    alignItems: "flex-start",
+    alignItems: "stretch",
   },
   totalLabel: {
     fontSize: 13,

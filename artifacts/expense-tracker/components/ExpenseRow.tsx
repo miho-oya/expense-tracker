@@ -3,8 +3,8 @@ import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { CategoryIcon } from "@/components/CategoryIcon";
-import { getCategory } from "@/constants/categories";
 import type { Expense } from "@/contexts/ExpensesContext";
+import { useCategoryDef } from "@/hooks/useCategoryDef";
 import { useColors } from "@/hooks/useColors";
 import { formatAmount, formatDateShort } from "@/utils/format";
 
@@ -15,7 +15,7 @@ type Props = {
 
 export function ExpenseRow({ expense, onPress }: Props) {
   const colors = useColors();
-  const cat = getCategory(expense.category);
+  const cat = useCategoryDef(expense.category);
 
   const handlePress = () => {
     if (Platform.OS !== "web") {

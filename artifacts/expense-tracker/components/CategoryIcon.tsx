@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { View, StyleSheet } from "react-native";
 
-import { getCategory } from "@/constants/categories";
+import { useCategoryDef } from "@/hooks/useCategoryDef";
 
 type Props = {
   category: string;
@@ -10,7 +10,7 @@ type Props = {
 };
 
 export function CategoryIcon({ category, size = 44 }: Props) {
-  const cat = getCategory(category);
+  const cat = useCategoryDef(category);
   const iconSize = Math.round(size * 0.5);
   return (
     <View

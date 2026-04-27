@@ -31,10 +31,16 @@ export function AddSheet({
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+  // On web, the file picker MUST be triggered synchronously from the click
+  // handler to keep the user-gesture context. setTimeout breaks that and the
+  // file dialog silently never appears (typically on the second open).
   const handle = (fn: () => void) => () => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (Platform.OS === "web") {
+      fn();
+      onClose();
+      return;
     }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     onClose();
     setTimeout(fn, 250);
   };

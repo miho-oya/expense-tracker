@@ -6,7 +6,6 @@ import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Modal,
   Platform,
   Pressable,
@@ -19,8 +18,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useParseReceipt } from "@workspace/api-client-react";
 
 import { AddSheet } from "@/components/AddSheet";
+import { BudgetBar } from "@/components/BudgetBar";
 import { ExpenseRow } from "@/components/ExpenseRow";
 import { useExpenses, type Expense } from "@/contexts/ExpensesContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import {
   formatAmount,
@@ -40,6 +41,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { expenses, loaded, setDraft } = useExpenses();
+  const { monthlyBudget } = useSettings();
   const parseReceipt = useParseReceipt();
 
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -120,15 +122,20 @@ export default function HomeScreen() {
     }
   };
 
+  // IMPORTANT: on web, the file picker MUST be invoked synchronously from the
+  // user click. Awaiting `requestMediaLibraryPermissionsAsync` first breaks the
+  // user-gesture context and the file dialog never opens. Skip permission
+  // checks on web (the browser handles them natively).
   const pickFromLibrary = async () => {
-    const perm =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        "権限が必要です",
-        "写真ライブラリへのアクセスを許可してください",
-      );
-      return;
+    if (Platform.OS !== "web") {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "権限が必要です",
+          "写真ライブラリへのアクセスを許可してください",
+        );
+        return;
+      }
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -141,13 +148,15 @@ export default function HomeScreen() {
   };
 
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        "権限が必要です",
-        "カメラへのアクセスを許可してください",
-      );
-      return;
+    if (Platform.OS !== "web") {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "権限が必要です",
+          "カメラへのアクセスを許可してください",
+        );
+        return;
+      }
     }
     const result = await ImagePicker.launchCameraAsync({
       base64: true,
@@ -191,6 +200,9 @@ export default function HomeScreen() {
         <Text style={[styles.totalAmount, { color: colors.foreground }]}>
           {formatAmount(monthTotal, "THB")}
         </Text>
+        {monthlyBudget != null && monthlyBudget > 0 && (
+          <BudgetBar spent={monthTotal} budget={monthlyBudget} />
+        )}
       </View>
 
       {loaded && expenses.length === 0 ? (

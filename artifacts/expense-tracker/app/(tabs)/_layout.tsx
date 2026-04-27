@@ -22,6 +22,12 @@ function NativeTabLayout() {
         />
         <Label>集計</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <Icon
+          sf={{ default: "gearshape", selected: "gearshape.fill" }}
+        />
+        <Label>設定</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -89,6 +95,18 @@ function ClassicTabLayout() {
               <SymbolView name="chart.pie" tintColor={color} size={24} />
             ) : (
               <Feather name="pie-chart" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "設定",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="gearshape" tintColor={color} size={24} />
+            ) : (
+              <Feather name="settings" size={22} color={color} />
             ),
         }}
       />
