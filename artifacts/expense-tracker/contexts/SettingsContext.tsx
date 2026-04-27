@@ -18,9 +18,12 @@ export type CategoryOverride = {
 
 export type CategoryOverrides = Partial<Record<CategoryKey, CategoryOverride>>;
 
+export type CategoryBudgets = Partial<Record<CategoryKey, number>>;
+
 type Settings = {
   monthlyBudget: number | null;
   categoryOverrides: CategoryOverrides;
+  categoryBudgets: CategoryBudgets;
 };
 
 type ContextValue = Settings & {
@@ -30,6 +33,7 @@ type ContextValue = Settings & {
     key: CategoryKey,
     override: CategoryOverride | null,
   ) => void;
+  setCategoryBudget: (key: CategoryKey, budget: number | null) => void;
 };
 
 const STORAGE_KEY = "@expense-tracker/settings/v1";
@@ -37,6 +41,7 @@ const STORAGE_KEY = "@expense-tracker/settings/v1";
 const DEFAULT_SETTINGS: Settings = {
   monthlyBudget: null,
   categoryOverrides: {},
+  categoryBudgets: {},
 };
 
 const SettingsContext = createContext<ContextValue | null>(null);
@@ -90,14 +95,36 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const setCategoryBudget = useCallback(
+    (key: CategoryKey, budget: number | null) => {
+      setSettings((prev) => {
+        const next: CategoryBudgets = { ...prev.categoryBudgets };
+        if (budget === null || !Number.isFinite(budget) || budget <= 0) {
+          delete next[key];
+        } else {
+          next[key] = budget;
+        }
+        return { ...prev, categoryBudgets: next };
+      });
+    },
+    [],
+  );
+
   const value = useMemo<ContextValue>(
     () => ({
       ...settings,
       loaded,
       setMonthlyBudget,
       setCategoryOverride,
+      setCategoryBudget,
     }),
-    [settings, loaded, setMonthlyBudget, setCategoryOverride],
+    [
+      settings,
+      loaded,
+      setMonthlyBudget,
+      setCategoryOverride,
+      setCategoryBudget,
+    ],
   );
 
   return (

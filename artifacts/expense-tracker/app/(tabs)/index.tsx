@@ -18,16 +18,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useParseReceipt } from "@workspace/api-client-react";
 
 import { AddSheet } from "@/components/AddSheet";
-import { BudgetBar } from "@/components/BudgetBar";
 import { ExpenseRow } from "@/components/ExpenseRow";
+import { MonthSummaryCard } from "@/components/MonthSummaryCard";
 import { useExpenses, type Expense } from "@/contexts/ExpensesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useColors } from "@/hooks/useColors";
 import {
-  formatAmount,
   formatDateJP,
-  getMonthKey,
   formatMonthJP,
+  getMonthKey,
   todayISO,
 } from "@/utils/format";
 
@@ -40,17 +39,21 @@ export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { expenses, loaded, setDraft } = useExpenses();
+  const { expenses, loaded, setDraft, addExpense } = useExpenses();
   const { monthlyBudget } = useSettings();
   const parseReceipt = useParseReceipt();
 
   const [sheetVisible, setSheetVisible] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
 
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? 67 : insets.top;
 
-  const { sections, monthTotal, monthLabel } = useMemo(() => {
+  const { sections, monthTotal, monthCount, monthLabel } = useMemo(() => {
     const sorted = [...expenses].sort((a, b) =>
       a.date === b.date
         ? b.createdAt - a.createdAt
@@ -75,18 +78,21 @@ export default function HomeScreen() {
 
     const currentMonth = getMonthKey(todayISO());
     let monthTotal = 0;
+    let monthCount = 0;
     for (const e of expenses) {
       if (
         getMonthKey(e.date) === currentMonth &&
         e.currency.toUpperCase() === "THB"
       ) {
         monthTotal += e.amount;
+        monthCount += 1;
       }
     }
 
     return {
       sections,
       monthTotal,
+      monthCount,
       monthLabel: formatMonthJP(currentMonth),
     };
   }, [expenses]);
@@ -122,10 +128,57 @@ export default function HomeScreen() {
     }
   };
 
+  // Process multiple receipts in sequence and auto-save.
+  // For 1 image we still open the review modal; for 2+ we save directly with
+  // the AI's suggestions and let the user fine-tune individual rows later.
+  const handleParseMany = async (
+    assets: ImagePicker.ImagePickerAsset[],
+  ) => {
+    if (assets.length === 1) {
+      handleParseImage(assets[0]);
+      return;
+    }
+    setBatchProgress({ current: 0, total: assets.length });
+    setParsing(true);
+    let success = 0;
+    let failed = 0;
+    for (let i = 0; i < assets.length; i++) {
+      setBatchProgress({ current: i + 1, total: assets.length });
+      const asset = assets[i];
+      try {
+        if (!asset.base64) {
+          throw new Error("画像データの読み込みに失敗しました");
+        }
+        const mimeType = asset.mimeType ?? "image/jpeg";
+        const result = await parseReceipt.mutateAsync({
+          data: { imageBase64: asset.base64, mimeType },
+        });
+        addExpense({
+          amount: result.amount,
+          currency: result.currency,
+          date: String(result.date).substring(0, 10),
+          merchant: result.merchant,
+          category: result.suggestedCategory,
+          note: result.rawNote ?? "",
+        });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setParsing(false);
+    setBatchProgress(null);
+    Alert.alert(
+      "読み取り完了",
+      failed === 0
+        ? `${success}件の出費を追加しました`
+        : `${success}件追加 / ${failed}件失敗`,
+    );
+  };
+
   // IMPORTANT: on web, the file picker MUST be invoked synchronously from the
   // user click. Awaiting `requestMediaLibraryPermissionsAsync` first breaks the
-  // user-gesture context and the file dialog never opens. Skip permission
-  // checks on web (the browser handles them natively).
+  // user-gesture context and the file dialog never opens.
   const pickFromLibrary = async () => {
     try {
       if (Platform.OS !== "web") {
@@ -146,9 +199,11 @@ export default function HomeScreen() {
             : ImagePicker.MediaTypeOptions.Images,
         base64: true,
         quality: 0.7,
+        allowsMultipleSelection: true,
+        selectionLimit: 10,
       });
-      if (!result.canceled && result.assets[0]) {
-        handleParseImage(result.assets[0]);
+      if (!result.canceled && result.assets.length > 0) {
+        handleParseMany(result.assets);
       }
     } catch (err: unknown) {
       const msg =
@@ -207,41 +262,54 @@ export default function HomeScreen() {
   const fabBottom =
     (Platform.OS === "web" ? 84 : insets.bottom + 60) + 16;
 
+  const ListHeader = (
+    <View style={styles.headerCardWrap}>
+      <MonthSummaryCard
+        monthLabel={monthLabel}
+        total={monthTotal}
+        count={monthCount}
+        budget={monthlyBudget}
+      />
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 12 }]}>
-        <Text style={[styles.greeting, { color: colors.mutedForeground }]}>
-          {monthLabel}の支出
-        </Text>
-        <Text style={[styles.totalAmount, { color: colors.foreground }]}>
-          {formatAmount(monthTotal, "THB")}
-        </Text>
-        {monthlyBudget != null && monthlyBudget > 0 && (
-          <BudgetBar spent={monthTotal} budget={monthlyBudget} />
-        )}
+      <View style={[styles.headerBar, { paddingTop: topPad + 12 }]}>
+        <Text style={[styles.title, { color: colors.foreground }]}>履歴</Text>
       </View>
 
       {loaded && expenses.length === 0 ? (
-        <View style={styles.empty}>
-          <View
-            style={[
-              styles.emptyIcon,
-              { backgroundColor: colors.secondary },
-            ]}
-          >
-            <Feather name="inbox" size={32} color={colors.mutedForeground} />
+        <>
+          {ListHeader}
+          <View style={styles.empty}>
+            <View
+              style={[
+                styles.emptyIcon,
+                { backgroundColor: colors.secondary },
+              ]}
+            >
+              <Feather
+                name="inbox"
+                size={32}
+                color={colors.mutedForeground}
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              まだ出費がありません
+            </Text>
+            <Text
+              style={[styles.emptyText, { color: colors.mutedForeground }]}
+            >
+              右下のボタンから領収書のスクショを{"\n"}アップロードしてみましょう
+            </Text>
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            まだ出費がありません
-          </Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            右下のボタンから領収書のスクショを{"\n"}アップロードしてみましょう
-          </Text>
-        </View>
+        </>
       ) : (
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={ListHeader}
           contentContainerStyle={{
             paddingHorizontal: 14,
             paddingBottom: fabBottom + 80,
@@ -306,12 +374,16 @@ export default function HomeScreen() {
           >
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.parsingText, { color: colors.foreground }]}>
-              領収書を読み取り中…
+              {batchProgress
+                ? `領収書を読み取り中… ${batchProgress.current}/${batchProgress.total}`
+                : "領収書を読み取り中…"}
             </Text>
             <Text
               style={[styles.parsingHint, { color: colors.mutedForeground }]}
             >
-              金額・日付・カテゴリを自動で抽出しています
+              {batchProgress
+                ? "金額・日付・カテゴリを順番に抽出しています"
+                : "金額・日付・カテゴリを自動で抽出しています"}
             </Text>
           </View>
         </View>
@@ -324,19 +396,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  headerBar: {
     paddingHorizontal: 20,
-    paddingBottom: 18,
+    paddingBottom: 8,
   },
-  greeting: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  totalAmount: {
-    fontSize: 36,
+  title: {
+    fontSize: 28,
     fontFamily: "Inter_700Bold",
-    marginTop: 4,
-    fontVariant: ["tabular-nums"],
+  },
+  headerCardWrap: {
+    paddingHorizontal: 6,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   sectionHeader: {
     paddingTop: 16,
@@ -404,6 +475,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
     marginTop: 4,
+    textAlign: "center",
   },
   parsingHint: {
     fontSize: 13,

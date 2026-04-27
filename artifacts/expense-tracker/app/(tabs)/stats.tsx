@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { BudgetBar } from "@/components/BudgetBar";
+import { CategoryPieChart } from "@/components/CategoryPieChart";
+import { MonthSummaryCard } from "@/components/MonthSummaryCard";
 import { useExpenses } from "@/contexts/ExpensesContext";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useCategoriesList } from "@/hooks/useCategoryDef";
@@ -26,7 +27,7 @@ export default function StatsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { expenses } = useExpenses();
-  const { monthlyBudget } = useSettings();
+  const { monthlyBudget, categoryBudgets } = useSettings();
   const cats = useCategoriesList();
   const isWeb = Platform.OS === "web";
   const topPad = isWeb ? 67 : insets.top;
@@ -45,9 +46,10 @@ export default function StatsScreen() {
     months.includes(selectedMonth) ? selectedMonth : months[0];
   const isCurrentMonth = activeMonth === getMonthKey(todayISO());
 
-  const { breakdown, total } = useMemo(() => {
+  const { breakdown, total, count } = useMemo(() => {
     const byCat = new Map<string, number>();
     let total = 0;
+    let count = 0;
     for (const e of expenses) {
       if (
         getMonthKey(e.date) !== activeMonth ||
@@ -57,6 +59,7 @@ export default function StatsScreen() {
       }
       byCat.set(e.category, (byCat.get(e.category) ?? 0) + e.amount);
       total += e.amount;
+      count += 1;
     }
     const breakdown = cats
       .map((cat) => ({
@@ -65,16 +68,18 @@ export default function StatsScreen() {
       }))
       .filter((row) => row.amount > 0)
       .sort((a, b) => b.amount - a.amount);
-    return { breakdown, total };
+    return { breakdown, total, count };
   }, [expenses, activeMonth, cats]);
 
-  const monthCount = useMemo(() => {
-    return expenses.filter(
-      (e) =>
-        getMonthKey(e.date) === activeMonth &&
-        e.currency.toUpperCase() === "THB",
-    ).length;
-  }, [expenses, activeMonth]);
+  const pieSlices = useMemo(
+    () =>
+      breakdown.map(({ cat, amount }) => ({
+        key: cat.key,
+        color: cat.color,
+        value: amount,
+      })),
+    [breakdown],
+  );
 
   const bottomPad = Platform.OS === "web" ? 100 : insets.bottom + 80;
 
@@ -129,35 +134,19 @@ export default function StatsScreen() {
           })}
         </ScrollView>
 
-        <View
+        <MonthSummaryCard
+          monthLabel={formatMonthJP(activeMonth)}
+          total={total}
+          count={count}
+          budget={isCurrentMonth ? monthlyBudget : null}
+        />
+
+        <Text
           style={[
-            styles.totalCard,
-            {
-              backgroundColor: colors.card,
-              borderRadius: colors.radius + 4,
-              borderColor: colors.border,
-            },
+            styles.sectionTitle,
+            { color: colors.foreground, marginTop: 24 },
           ]}
         >
-          <Text
-            style={[styles.totalLabel, { color: colors.mutedForeground }]}
-          >
-            合計支出
-          </Text>
-          <Text style={[styles.totalAmount, { color: colors.foreground }]}>
-            {formatAmount(total, "THB")}
-          </Text>
-          <Text
-            style={[styles.totalMeta, { color: colors.mutedForeground }]}
-          >
-            {monthCount}件の出費
-          </Text>
-          {isCurrentMonth && monthlyBudget != null && monthlyBudget > 0 && (
-            <BudgetBar spent={total} budget={monthlyBudget} />
-          )}
-        </View>
-
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
           カテゴリ別
         </Text>
 
@@ -184,75 +173,154 @@ export default function StatsScreen() {
             </Text>
           </View>
         ) : (
-          <View style={{ gap: 10 }}>
-            {breakdown.map(({ cat, amount }) => {
-              const pct = total > 0 ? (amount / total) * 100 : 0;
-              return (
-                <View
-                  key={cat.key}
-                  style={[
-                    styles.catCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderRadius: colors.radius,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.catHead}>
-                    <View style={styles.catLabelRow}>
+          <>
+            <View
+              style={[
+                styles.chartCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  borderRadius: colors.radius + 4,
+                },
+              ]}
+            >
+              <CategoryPieChart
+                slices={pieSlices}
+                total={total}
+                size={200}
+                thickness={28}
+                centerSubLabel="合計"
+                centerLabel={formatAmount(total, "THB")}
+              />
+              <View style={styles.legend}>
+                {breakdown.map(({ cat, amount }) => {
+                  const pct = total > 0 ? (amount / total) * 100 : 0;
+                  return (
+                    <View key={cat.key} style={styles.legendRow}>
                       <View
                         style={[
-                          styles.catDot,
+                          styles.legendDot,
                           { backgroundColor: cat.color },
                         ]}
                       />
                       <Text
                         style={[
-                          styles.catLabel,
+                          styles.legendLabel,
                           { color: colors.foreground },
                         ]}
+                        numberOfLines={1}
                       >
                         {cat.label}
                       </Text>
+                      <Text
+                        style={[
+                          styles.legendPct,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        {pct.toFixed(1)}%
+                      </Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.catAmount,
-                        { color: colors.foreground },
-                      ]}
-                    >
-                      {formatAmount(amount, "THB")}
-                    </Text>
-                  </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={{ gap: 10, marginTop: 16 }}>
+              {breakdown.map(({ cat, amount }) => {
+                const pct = total > 0 ? (amount / total) * 100 : 0;
+                const catBudget = categoryBudgets[cat.key];
+                const showBudget =
+                  isCurrentMonth && catBudget != null && catBudget > 0;
+                const budgetPct = showBudget
+                  ? (amount / (catBudget as number)) * 100
+                  : 0;
+                const overBudget = showBudget && budgetPct > 100;
+                return (
                   <View
+                    key={cat.key}
                     style={[
-                      styles.barBg,
-                      { backgroundColor: colors.secondary },
+                      styles.catCard,
+                      {
+                        backgroundColor: colors.card,
+                        borderRadius: colors.radius,
+                        borderColor: colors.border,
+                      },
                     ]}
                   >
+                    <View style={styles.catHead}>
+                      <View style={styles.catLabelRow}>
+                        <View
+                          style={[
+                            styles.catDot,
+                            { backgroundColor: cat.color },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.catLabel,
+                            { color: colors.foreground },
+                          ]}
+                        >
+                          {cat.label}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.catAmount,
+                          { color: colors.foreground },
+                        ]}
+                      >
+                        {formatAmount(amount, "THB")}
+                      </Text>
+                    </View>
                     <View
                       style={[
-                        styles.barFill,
-                        {
-                          backgroundColor: cat.color,
-                          width: `${Math.max(pct, 4)}%`,
-                        },
+                        styles.barBg,
+                        { backgroundColor: colors.secondary },
                       ]}
-                    />
+                    >
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            backgroundColor: cat.color,
+                            width: `${Math.max(pct, 4)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.catFooter}>
+                      <Text
+                        style={[
+                          styles.catFooterText,
+                          { color: colors.mutedForeground },
+                        ]}
+                      >
+                        全体の {pct.toFixed(1)}%
+                      </Text>
+                      {showBudget && (
+                        <Text
+                          style={[
+                            styles.catFooterText,
+                            {
+                              color: overBudget
+                                ? colors.destructive
+                                : colors.mutedForeground,
+                            },
+                          ]}
+                        >
+                          予算 {formatAmount(catBudget as number, "THB")} (
+                          {Math.round(budgetPct)}%
+                          {overBudget ? " 超過" : ""})
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                  <Text
-                    style={[
-                      styles.catPct,
-                      { color: colors.mutedForeground },
-                    ]}
-                  >
-                    {pct.toFixed(1)}%
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+                );
+              })}
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -284,32 +352,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
   },
-  totalCard: {
-    padding: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginTop: 4,
-    marginBottom: 24,
-    alignItems: "stretch",
-  },
-  totalLabel: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
-  totalAmount: {
-    fontSize: 38,
-    fontFamily: "Inter_700Bold",
-    marginTop: 4,
-    fontVariant: ["tabular-nums"],
-  },
-  totalMeta: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    marginTop: 4,
-  },
   sectionTitle: {
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
     marginBottom: 12,
+  },
+  chartCard: {
+    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    gap: 18,
+  },
+  legend: {
+    width: "100%",
+    gap: 8,
+  },
+  legendRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    flex: 1,
+  },
+  legendPct: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    fontVariant: ["tabular-nums"],
   },
   catCard: {
     padding: 14,
@@ -349,16 +425,24 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 4,
   },
-  catPct: {
+  catFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  catFooterText: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    alignSelf: "flex-end",
+    fontVariant: ["tabular-nums"],
   },
   emptyBox: {
     paddingVertical: 32,
     alignItems: "center",
     borderWidth: StyleSheet.hairlineWidth,
     gap: 10,
+    marginTop: 16,
   },
   emptyText: {
     fontSize: 14,

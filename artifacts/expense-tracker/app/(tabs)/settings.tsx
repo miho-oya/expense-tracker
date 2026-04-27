@@ -17,12 +17,13 @@ import { CategoryIcon } from "@/components/CategoryIcon";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useCategoriesList } from "@/hooks/useCategoryDef";
 import { useColors } from "@/hooks/useColors";
+import { formatAmount } from "@/utils/format";
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { monthlyBudget, setMonthlyBudget } = useSettings();
+  const { monthlyBudget, categoryBudgets, setMonthlyBudget } = useSettings();
   const cats = useCategoriesList();
 
   const [budgetInput, setBudgetInput] = useState(
@@ -133,38 +134,55 @@ export default function SettingsScreen() {
             },
           ]}
         >
-          {cats.map((cat, idx) => (
-            <Pressable
-              key={cat.key}
-              onPress={() =>
-                router.push({
-                  pathname: "/category-edit",
-                  params: { key: cat.key },
-                })
-              }
-              style={({ pressed }) => [
-                styles.catRow,
-                {
-                  borderTopColor: colors.border,
-                  borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
-                  opacity: pressed ? 0.6 : 1,
-                },
-              ]}
-            >
-              <CategoryIcon category={cat.key} size={36} />
-              <Text style={[styles.catLabel, { color: colors.foreground }]}>
-                {cat.label}
-              </Text>
-              <Feather
-                name="chevron-right"
-                size={20}
-                color={colors.mutedForeground}
-              />
-            </Pressable>
-          ))}
+          {cats.map((cat, idx) => {
+            const catBudget = categoryBudgets[cat.key];
+            return (
+              <Pressable
+                key={cat.key}
+                onPress={() =>
+                  router.push({
+                    pathname: "/category-edit",
+                    params: { key: cat.key },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.catRow,
+                  {
+                    borderTopColor: colors.border,
+                    borderTopWidth: idx === 0 ? 0 : StyleSheet.hairlineWidth,
+                    opacity: pressed ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <CategoryIcon category={cat.key} size={36} />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[styles.catLabel, { color: colors.foreground }]}
+                  >
+                    {cat.label}
+                  </Text>
+                  {catBudget != null && (
+                    <Text
+                      style={[
+                        styles.catBudget,
+                        { color: colors.mutedForeground },
+                      ]}
+                    >
+                      予算 {formatAmount(catBudget, "THB")}
+                    </Text>
+                  )}
+                </View>
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={colors.mutedForeground}
+                />
+              </Pressable>
+            );
+          })}
         </View>
         <Text style={[styles.hint, { color: colors.mutedForeground, marginTop: 8, paddingHorizontal: 4 }]}>
-          各カテゴリの名前・アイコン・色をカスタマイズできます
+          各カテゴリの名前・アイコン・色・予算をカスタマイズできます
         </Text>
       </ScrollView>
     </View>
@@ -229,8 +247,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   catLabel: {
-    flex: 1,
     fontSize: 16,
     fontFamily: "Inter_500Medium",
+  },
+  catBudget: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    marginTop: 2,
+    fontVariant: ["tabular-nums"],
   },
 });

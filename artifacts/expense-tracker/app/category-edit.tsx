@@ -70,14 +70,23 @@ export default function CategoryEditScreen() {
   const params = useLocalSearchParams<{ key?: string }>();
   const key = (params.key as CategoryKey) ?? "other";
   const base = getCategory(key);
-  const { categoryOverrides, setCategoryOverride } = useSettings();
+  const {
+    categoryOverrides,
+    categoryBudgets,
+    setCategoryOverride,
+    setCategoryBudget,
+  } = useSettings();
   const current = categoryOverrides[key] ?? {};
+  const currentBudget = categoryBudgets[key];
 
   const [label, setLabel] = useState(current.label ?? base.label);
   const [color, setColor] = useState(current.color ?? base.color);
   const [icon, setIcon] = useState<
     React.ComponentProps<typeof Feather>["name"]
   >((current.icon as React.ComponentProps<typeof Feather>["name"]) ?? base.icon);
+  const [budgetInput, setBudgetInput] = useState(
+    currentBudget != null ? String(currentBudget) : "",
+  );
 
   const handleSave = () => {
     const trimmed = label.trim();
@@ -100,22 +109,40 @@ export default function CategoryEditScreen() {
     } else {
       setCategoryOverride(key, override);
     }
+
+    const trimmedBudget = budgetInput.trim();
+    if (trimmedBudget === "") {
+      setCategoryBudget(key, null);
+    } else {
+      const num = parseFloat(trimmedBudget);
+      if (!Number.isFinite(num) || num < 0) {
+        Alert.alert("入力エラー", "予算には正しい数字を入力してください");
+        return;
+      }
+      setCategoryBudget(key, num > 0 ? num : null);
+    }
+
     router.back();
   };
 
   const handleReset = () => {
     const doReset = () => {
       setCategoryOverride(key, null);
+      setCategoryBudget(key, null);
       router.back();
     };
     if (Platform.OS === "web") {
       doReset();
       return;
     }
-    Alert.alert("初期設定に戻しますか?", "このカテゴリのカスタマイズを削除します", [
-      { text: "キャンセル", style: "cancel" },
-      { text: "戻す", style: "destructive", onPress: doReset },
-    ]);
+    Alert.alert(
+      "初期設定に戻しますか?",
+      "このカテゴリのカスタマイズと予算を削除します",
+      [
+        { text: "キャンセル", style: "cancel" },
+        { text: "戻す", style: "destructive", onPress: doReset },
+      ],
+    );
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top + 8;
@@ -204,6 +231,51 @@ export default function CategoryEditScreen() {
             },
           ]}
         />
+
+        <Text
+          style={[
+            styles.fieldLabel,
+            { color: colors.mutedForeground, marginTop: 18 },
+          ]}
+        >
+          月次予算 (THB)
+        </Text>
+        <View
+          style={[
+            styles.budgetRow,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              borderRadius: colors.radius,
+            },
+          ]}
+        >
+          <Text style={[styles.budgetSymbol, { color: colors.foreground }]}>
+            ฿
+          </Text>
+          <TextInput
+            value={budgetInput}
+            onChangeText={setBudgetInput}
+            placeholder="予算なし"
+            placeholderTextColor={colors.mutedForeground}
+            keyboardType="decimal-pad"
+            style={[styles.budgetInput, { color: colors.foreground }]}
+            returnKeyType="done"
+          />
+          {budgetInput !== "" && (
+            <Pressable
+              onPress={() => setBudgetInput("")}
+              hitSlop={10}
+              style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+            >
+              <Feather
+                name="x-circle"
+                size={20}
+                color={colors.mutedForeground}
+              />
+            </Pressable>
+          )}
+        </View>
 
         <Text
           style={[
@@ -357,6 +429,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_500Medium",
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  budgetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  budgetSymbol: {
+    fontSize: 22,
+    fontFamily: "Inter_600SemiBold",
+  },
+  budgetInput: {
+    flex: 1,
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    fontVariant: ["tabular-nums"],
+    paddingVertical: 2,
   },
   gridCard: {
     flexDirection: "row",
