@@ -127,43 +127,59 @@ export default function HomeScreen() {
   // user-gesture context and the file dialog never opens. Skip permission
   // checks on web (the browser handles them natively).
   const pickFromLibrary = async () => {
-    if (Platform.OS !== "web") {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          "権限が必要です",
-          "写真ライブラリへのアクセスを許可してください",
-        );
-        return;
+    try {
+      if (Platform.OS !== "web") {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "権限が必要です",
+            "設定アプリから写真ライブラリへのアクセスを許可してください",
+          );
+          return;
+        }
       }
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      base64: true,
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      handleParseImage(result.assets[0]);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes:
+          (ImagePicker as unknown as { MediaType?: { Images: string } })
+            .MediaType?.Images
+            ? ["images"]
+            : ImagePicker.MediaTypeOptions.Images,
+        base64: true,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        handleParseImage(result.assets[0]);
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "写真の読み込みに失敗しました";
+      Alert.alert("エラー", msg);
     }
   };
 
   const takePhoto = async () => {
-    if (Platform.OS !== "web") {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          "権限が必要です",
-          "カメラへのアクセスを許可してください",
-        );
-        return;
+    try {
+      if (Platform.OS !== "web") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "権限が必要です",
+            "設定アプリからカメラへのアクセスを許可してください",
+          );
+          return;
+        }
       }
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      base64: true,
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets[0]) {
-      handleParseImage(result.assets[0]);
+      const result = await ImagePicker.launchCameraAsync({
+        base64: true,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        handleParseImage(result.assets[0]);
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "カメラの起動に失敗しました";
+      Alert.alert("エラー", msg);
     }
   };
 

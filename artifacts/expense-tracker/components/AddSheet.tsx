@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React from "react";
+import React, { useRef } from "react";
 import {
   Modal,
   Platform,
@@ -30,10 +30,23 @@ export function AddSheet({
 }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const pendingFnRef = useRef<(() => void) | null>(null);
 
-  // On web, the file picker MUST be triggered synchronously from the click
-  // handler to keep the user-gesture context. setTimeout breaks that and the
-  // file dialog silently never appears (typically on the second open).
+  const runPending = () => {
+    const f = pendingFnRef.current;
+    pendingFnRef.current = null;
+    if (f) f();
+  };
+
+  // Sequencing rules per platform:
+  //   - Web: file picker MUST be invoked synchronously inside the user click
+  //     to preserve the gesture context, otherwise the dialog never opens.
+  //   - iOS: only one modal can be presented at a time. We must wait until the
+  //     sheet's dismiss animation fully finishes before launching the image
+  //     picker, otherwise UIImagePickerController silently fails to present.
+  //     Modal's `onDismiss` (iOS-only) fires exactly when that completes.
+  //   - Android: `onDismiss` is unsupported on RN's Modal, so we fall back to
+  //     a short timeout that exceeds the fade animation.
   const handle = (fn: () => void) => () => {
     if (Platform.OS === "web") {
       fn();
@@ -41,8 +54,11 @@ export function AddSheet({
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    pendingFnRef.current = fn;
     onClose();
-    setTimeout(fn, 250);
+    if (Platform.OS === "android") {
+      setTimeout(runPending, 320);
+    }
   };
 
   const bottomPad = Platform.OS === "web" ? 34 : Math.max(insets.bottom, 16);
@@ -53,6 +69,7 @@ export function AddSheet({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      onDismiss={runPending}
       statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
