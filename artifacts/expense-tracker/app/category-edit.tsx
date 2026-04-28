@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getCategory, type CategoryKey } from "@/constants/categories";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useColors } from "@/hooks/useColors";
+import { formatNumberInput, parseFormattedNumber } from "@/utils/format";
 
 const COLOR_CHOICES = [
   "#ea580c",
@@ -85,7 +86,7 @@ export default function CategoryEditScreen() {
     React.ComponentProps<typeof Feather>["name"]
   >((current.icon as React.ComponentProps<typeof Feather>["name"]) ?? base.icon);
   const [budgetInput, setBudgetInput] = useState(
-    currentBudget != null ? String(currentBudget) : "",
+    currentBudget != null ? formatNumberInput(String(currentBudget)) : "",
   );
 
   const handleSave = () => {
@@ -110,12 +111,11 @@ export default function CategoryEditScreen() {
       setCategoryOverride(key, override);
     }
 
-    const trimmedBudget = budgetInput.trim();
-    if (trimmedBudget === "") {
+    if (budgetInput.trim() === "") {
       setCategoryBudget(key, null);
     } else {
-      const num = parseFloat(trimmedBudget);
-      if (!Number.isFinite(num) || num < 0) {
+      const num = parseFormattedNumber(budgetInput);
+      if (num == null || num < 0) {
         Alert.alert("入力エラー", "予算には正しい数字を入力してください");
         return;
       }
@@ -255,7 +255,7 @@ export default function CategoryEditScreen() {
           </Text>
           <TextInput
             value={budgetInput}
-            onChangeText={setBudgetInput}
+            onChangeText={(t) => setBudgetInput(formatNumberInput(t))}
             placeholder="予算なし"
             placeholderTextColor={colors.mutedForeground}
             keyboardType="decimal-pad"

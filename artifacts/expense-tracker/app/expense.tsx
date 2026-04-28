@@ -6,7 +6,6 @@ import {
   Alert,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { DatePickerModal } from "@/components/DatePickerModal";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { type CategoryKey } from "@/constants/categories";
 import { useExpenses } from "@/contexts/ExpensesContext";
@@ -52,16 +52,17 @@ export default function ExpenseScreen() {
         merchant: existing.merchant,
         category: existing.category as CategoryKey,
         note: existing.note ?? "",
+        imageHash: existing.imageHash,
       };
     }
     return {
-      amount:
-        draft?.amount !== undefined ? String(draft.amount) : "",
+      amount: draft?.amount !== undefined ? String(draft.amount) : "",
       currency: draft?.currency ?? "THB",
       date: draft?.date ?? todayISO(),
       merchant: draft?.merchant ?? "",
       category: (draft?.category ?? "other") as CategoryKey,
       note: draft?.note ?? "",
+      imageHash: draft?.imageHash,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
@@ -72,6 +73,7 @@ export default function ExpenseScreen() {
   const [merchant, setMerchant] = useState(initial.merchant);
   const [category, setCategory] = useState<CategoryKey>(initial.category);
   const [note, setNote] = useState(initial.note);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -98,6 +100,7 @@ export default function ExpenseScreen() {
       merchant: merchant.trim(),
       category,
       note: note.trim(),
+      imageHash: initial.imageHash,
     };
     if (editId) {
       updateExpense(editId, payload);
@@ -227,10 +230,7 @@ export default function ExpenseScreen() {
               keyboardType="decimal-pad"
               placeholder="0"
               placeholderTextColor={colors.mutedForeground}
-              style={[
-                styles.amountInput,
-                { color: colors.foreground },
-              ]}
+              style={[styles.amountInput, { color: colors.foreground }]}
             />
           </View>
         </View>
@@ -278,11 +278,25 @@ export default function ExpenseScreen() {
                 color={colors.foreground}
               />
             </Pressable>
-            <Text
-              style={[styles.dateText, { color: colors.foreground }]}
+            <Pressable
+              onPress={() => setDatePickerOpen(true)}
+              style={({ pressed }) => [
+                styles.dateTextWrap,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              hitSlop={8}
             >
-              {formatDateJP(date)}
-            </Text>
+              <Feather
+                name="calendar"
+                size={16}
+                color={colors.mutedForeground}
+              />
+              <Text
+                style={[styles.dateText, { color: colors.foreground }]}
+              >
+                {formatDateJP(date)}
+              </Text>
+            </Pressable>
             <Pressable
               onPress={() => adjustDate(1)}
               style={({ pressed }) => [
@@ -298,6 +312,14 @@ export default function ExpenseScreen() {
               />
             </Pressable>
           </View>
+          <Text
+            style={[
+              styles.dateHint,
+              { color: colors.mutedForeground },
+            ]}
+          >
+            日付をタップすると年・月・日をまとめて変更できます
+          </Text>
         </Field>
 
         <Field label="カテゴリ">
@@ -331,9 +353,7 @@ export default function ExpenseScreen() {
                   <Text
                     style={[
                       styles.catChipText,
-                      {
-                        color: active ? "#ffffff" : colors.foreground,
-                      },
+                      { color: active ? "#ffffff" : colors.foreground },
                     ]}
                   >
                     {cat.label}
@@ -379,14 +399,19 @@ export default function ExpenseScreen() {
             ]}
           >
             <Feather name="trash-2" size={18} color={colors.destructive} />
-            <Text
-              style={[styles.deleteText, { color: colors.destructive }]}
-            >
+            <Text style={[styles.deleteText, { color: colors.destructive }]}>
               この出費を削除
             </Text>
           </Pressable>
         )}
       </KeyboardAwareScrollViewCompat>
+
+      <DatePickerModal
+        visible={datePickerOpen}
+        value={date}
+        onClose={() => setDatePickerOpen(false)}
+        onChange={setDate}
+      />
     </View>
   );
 }
@@ -410,9 +435,7 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -420,13 +443,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
-  headerBtn: {
-    minWidth: 70,
-  },
-  headerBtnText: {
-    fontSize: 16,
-    fontFamily: "Inter_500Medium",
-  },
+  headerBtn: { minWidth: 70 },
+  headerBtnText: { fontSize: 16, fontFamily: "Inter_500Medium" },
   headerTitle: {
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
@@ -466,9 +484,7 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     paddingVertical: 4,
   },
-  field: {
-    marginBottom: 18,
-  },
+  field: { marginBottom: 18 },
   fieldLabel: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
@@ -491,19 +507,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderWidth: StyleSheet.hairlineWidth,
   },
   dateBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  dateTextWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 8,
   },
   dateText: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
+  },
+  dateHint: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    marginTop: 6,
+    paddingHorizontal: 4,
   },
   catGrid: {
     flexDirection: "row",

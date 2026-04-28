@@ -45,3 +45,35 @@ export function formatMonthJP(monthKey: string): string {
   const [y, m] = parts;
   return `${y}年${parseInt(m, 10)}月`;
 }
+
+// Format a numeric input string with thousand separators while preserving
+// the decimal portion the user is typing.
+// "1234.5" -> "1,234.5", "1234." -> "1,234.", "" -> ""
+export function formatNumberInput(value: string): string {
+  // Strip everything that isn't a digit or a dot (also drops existing commas).
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return "";
+  // Keep only the first dot.
+  const firstDot = cleaned.indexOf(".");
+  const intRaw =
+    firstDot === -1 ? cleaned : cleaned.substring(0, firstDot);
+  const decRaw =
+    firstDot === -1
+      ? ""
+      : cleaned.substring(firstDot + 1).replace(/\./g, "");
+  const intFormatted =
+    intRaw === ""
+      ? ""
+      : Number(intRaw).toLocaleString("en-US", {
+          maximumFractionDigits: 0,
+        });
+  if (firstDot === -1) return intFormatted;
+  return `${intFormatted === "" ? "0" : intFormatted}.${decRaw}`;
+}
+
+export function parseFormattedNumber(value: string): number | null {
+  const cleaned = value.replace(/,/g, "").trim();
+  if (cleaned === "") return null;
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? num : null;
+}

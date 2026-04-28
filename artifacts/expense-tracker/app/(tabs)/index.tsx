@@ -29,17 +29,28 @@ import {
   getMonthKey,
   todayISO,
 } from "@/utils/format";
+import { hashString } from "@/utils/imageHash";
 
 type Section = {
   title: string;
   data: Expense[];
 };
 
+class DuplicateReceiptError extends Error {
+  existing: Expense;
+  constructor(existing: Expense) {
+    super("duplicate");
+    this.name = "DuplicateReceiptError";
+    this.existing = existing;
+  }
+}
+
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { expenses, loaded, setDraft, addExpense } = useExpenses();
+  const { expenses, loaded, setDraft, addExpense, findByImageHash } =
+    useExpenses();
   const { monthlyBudget } = useSettings();
   const parseReceipt = useParseReceipt();
 
@@ -97,14 +108,17 @@ export default function HomeScreen() {
     };
   }, [expenses]);
 
-  const handleParseImage = async (
-    asset: ImagePicker.ImagePickerAsset,
-  ) => {
+  const handleParseImage = async (asset: ImagePicker.ImagePickerAsset) => {
     setParsing(true);
     try {
       const base64 = asset.base64;
       if (!base64) {
         throw new Error("画像データの読み込みに失敗しました");
+      }
+      const imageHash = hashString(base64);
+      const dup = findByImageHash(imageHash);
+      if (dup) {
+        throw new DuplicateReceiptError(dup);
       }
       const mimeType = asset.mimeType ?? "image/jpeg";
       const result = await parseReceipt.mutateAsync({
@@ -117,12 +131,21 @@ export default function HomeScreen() {
         merchant: result.merchant,
         category: result.suggestedCategory,
         note: result.rawNote ?? "",
+        imageHash,
       });
       router.push("/expense");
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "領収書の解析に失敗しました";
-      Alert.alert("解析エラー", msg);
+      if (err instanceof DuplicateReceiptError) {
+        const e = err.existing;
+        Alert.alert(
+          "重複した領収書",
+          `この領収書は既に登録されています\n\n${formatDateJP(e.date)} ・ ${e.merchant}`,
+        );
+      } else {
+        const msg =
+          err instanceof Error ? err.message : "領収書の解析に失敗しました";
+        Alert.alert("解析エラー", msg);
+      }
     } finally {
       setParsing(false);
     }
@@ -131,9 +154,7 @@ export default function HomeScreen() {
   // Process multiple receipts in sequence and auto-save.
   // For 1 image we still open the review modal; for 2+ we save directly with
   // the AI's suggestions and let the user fine-tune individual rows later.
-  const handleParseMany = async (
-    assets: ImagePicker.ImagePickerAsset[],
-  ) => {
+  const handleParseMany = async (assets: ImagePicker.ImagePickerAsset[]) => {
     if (assets.length === 1) {
       handleParseImage(assets[0]);
       return;
@@ -142,12 +163,19 @@ export default function HomeScreen() {
     setParsing(true);
     let success = 0;
     let failed = 0;
+    let duplicates = 0;
     for (let i = 0; i < assets.length; i++) {
       setBatchProgress({ current: i + 1, total: assets.length });
       const asset = assets[i];
       try {
         if (!asset.base64) {
           throw new Error("画像データの読み込みに失敗しました");
+        }
+        const imageHash = hashString(asset.base64);
+        const dup = findByImageHash(imageHash);
+        if (dup) {
+          duplicates += 1;
+          continue;
         }
         const mimeType = asset.mimeType ?? "image/jpeg";
         const result = await parseReceipt.mutateAsync({
@@ -160,6 +188,7 @@ export default function HomeScreen() {
           merchant: result.merchant,
           category: result.suggestedCategory,
           note: result.rawNote ?? "",
+          imageHash,
         });
         success += 1;
       } catch {
@@ -168,12 +197,11 @@ export default function HomeScreen() {
     }
     setParsing(false);
     setBatchProgress(null);
-    Alert.alert(
-      "読み取り完了",
-      failed === 0
-        ? `${success}件の出費を追加しました`
-        : `${success}件追加 / ${failed}件失敗`,
-    );
+    const parts: string[] = [];
+    parts.push(`${success}件追加`);
+    if (duplicates > 0) parts.push(`${duplicates}件重複`);
+    if (failed > 0) parts.push(`${failed}件失敗`);
+    Alert.alert("読み取り完了", parts.join(" / "));
   };
 
   // IMPORTANT: on web, the file picker MUST be invoked synchronously from the
@@ -192,11 +220,11 @@ export default function HomeScreen() {
         }
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes:
-          (ImagePicker as unknown as { MediaType?: { Images: string } })
-            .MediaType?.Images
-            ? ["images"]
-            : ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: (
+          ImagePicker as unknown as { MediaType?: { Images: string } }
+        ).MediaType?.Images
+          ? ["images"]
+          : ImagePicker.MediaTypeOptions.Images,
         base64: true,
         quality: 0.7,
         allowsMultipleSelection: true,
@@ -259,8 +287,7 @@ export default function HomeScreen() {
     setSheetVisible(true);
   };
 
-  const fabBottom =
-    (Platform.OS === "web" ? 84 : insets.bottom + 60) + 16;
+  const fabBottom = (Platform.OS === "web" ? 84 : insets.bottom + 60) + 16;
 
   const ListHeader = (
     <View style={styles.headerCardWrap}>
@@ -298,9 +325,7 @@ export default function HomeScreen() {
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
               まだ出費がありません
             </Text>
-            <Text
-              style={[styles.emptyText, { color: colors.mutedForeground }]}
-            >
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
               右下のボタンから領収書のスクショを{"\n"}アップロードしてみましょう
             </Text>
           </View>
@@ -366,13 +391,16 @@ export default function HomeScreen() {
 
       <Modal visible={parsing} transparent animationType="fade">
         <View style={styles.parsingOverlay}>
-          <View
-            style={[
-              styles.parsingBox,
-              { backgroundColor: colors.card },
-            ]}
-          >
-            <ActivityIndicator size="large" color={colors.primary} />
+          <View style={[styles.parsingBox, { backgroundColor: colors.card }]}>
+            <View
+              style={[
+                styles.parsingIconWrap,
+                { backgroundColor: colors.primary + "1A" },
+              ]}
+            >
+              <Feather name="file-text" size={32} color={colors.primary} />
+            </View>
+            <ActivityIndicator size="small" color={colors.primary} />
             <Text style={[styles.parsingText, { color: colors.foreground }]}>
               {batchProgress
                 ? `領収書を読み取り中… ${batchProgress.current}/${batchProgress.total}`
@@ -393,9 +421,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   headerBar: {
     paddingHorizontal: 20,
     paddingBottom: 8,
@@ -458,23 +484,29 @@ const styles = StyleSheet.create({
   },
   parsingOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
   },
   parsingBox: {
-    paddingVertical: 28,
-    paddingHorizontal: 24,
-    borderRadius: 18,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    borderRadius: 20,
     alignItems: "center",
-    gap: 12,
-    minWidth: 240,
+    gap: 14,
+    minWidth: 260,
+  },
+  parsingIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
   },
   parsingText: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    marginTop: 4,
     textAlign: "center",
   },
   parsingHint: {

@@ -17,7 +17,11 @@ import { CategoryIcon } from "@/components/CategoryIcon";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useCategoriesList } from "@/hooks/useCategoryDef";
 import { useColors } from "@/hooks/useColors";
-import { formatAmount } from "@/utils/format";
+import {
+  formatAmount,
+  formatNumberInput,
+  parseFormattedNumber,
+} from "@/utils/format";
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -27,23 +31,30 @@ export default function SettingsScreen() {
   const cats = useCategoriesList();
 
   const [budgetInput, setBudgetInput] = useState(
-    monthlyBudget != null ? String(monthlyBudget) : "",
+    monthlyBudget != null ? formatNumberInput(String(monthlyBudget)) : "",
   );
 
   useEffect(() => {
-    setBudgetInput(monthlyBudget != null ? String(monthlyBudget) : "");
+    setBudgetInput(
+      monthlyBudget != null ? formatNumberInput(String(monthlyBudget)) : "",
+    );
   }, [monthlyBudget]);
 
+  const handleBudgetChange = (text: string) => {
+    setBudgetInput(formatNumberInput(text));
+  };
+
   const commitBudget = () => {
-    const trimmed = budgetInput.trim();
-    if (trimmed === "") {
+    if (budgetInput.trim() === "") {
       setMonthlyBudget(null);
       return;
     }
-    const num = parseFloat(trimmed);
-    if (!Number.isFinite(num) || num < 0) {
+    const num = parseFormattedNumber(budgetInput);
+    if (num == null || num < 0) {
       Alert.alert("入力エラー", "正しい金額を入力してください");
-      setBudgetInput(monthlyBudget != null ? String(monthlyBudget) : "");
+      setBudgetInput(
+        monthlyBudget != null ? formatNumberInput(String(monthlyBudget)) : "",
+      );
       return;
     }
     setMonthlyBudget(num);
@@ -92,7 +103,7 @@ export default function SettingsScreen() {
             </Text>
             <TextInput
               value={budgetInput}
-              onChangeText={setBudgetInput}
+              onChangeText={handleBudgetChange}
               onEndEditing={commitBudget}
               onBlur={commitBudget}
               keyboardType="decimal-pad"

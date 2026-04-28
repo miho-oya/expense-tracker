@@ -18,6 +18,7 @@ export type Expense = {
   merchant: string;
   category: CategoryKey;
   note?: string;
+  imageHash?: string;
   createdAt: number;
 };
 
@@ -28,6 +29,7 @@ export type DraftExpense = {
   merchant?: string;
   category?: CategoryKey;
   note?: string;
+  imageHash?: string;
 };
 
 const STORAGE_KEY = "@expense-tracker/expenses/v1";
@@ -44,6 +46,7 @@ type ContextValue = {
   ) => void;
   deleteExpense: (id: string) => void;
   getExpense: (id: string) => Expense | undefined;
+  findByImageHash: (hash: string) => Expense | undefined;
 };
 
 const ExpensesContext = createContext<ContextValue | null>(null);
@@ -118,6 +121,12 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     [expenses],
   );
 
+  const findByImageHash = useCallback(
+    (hash: string) =>
+      hash ? expenses.find((e) => e.imageHash === hash) : undefined,
+    [expenses],
+  );
+
   const value = useMemo<ContextValue>(
     () => ({
       expenses,
@@ -128,6 +137,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       updateExpense,
       deleteExpense,
       getExpense,
+      findByImageHash,
     }),
     [
       expenses,
@@ -137,6 +147,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       updateExpense,
       deleteExpense,
       getExpense,
+      findByImageHash,
     ],
   );
 
