@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
 import { rm } from "node:fs/promises";
+import { execSync } from "node:child_process"; // ← ① 1行目あたりにこれを追加しました
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
@@ -118,6 +119,10 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  // ← ② ビルドが完全に終わった直後のここに、起動コマンドを差し込みました！
+  console.log("Build finished successfully. Starting server...");
+  execSync("node --env-file=.env --enable-source-maps ./dist/index.mjs", { stdio: "inherit" });
 }
 
 buildAll().catch((err) => {

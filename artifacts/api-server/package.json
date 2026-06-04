@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
-    "build": "node ./build.mjs",
-    "start": "node --enable-source-maps ./dist/index.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
+      "dev": "node ./build.mjs",
+      "build": "node ./build.mjs",
+      "start": "node --env-file=.env --enable-source-maps ./dist/index.mjs",
+      "typecheck": "tsc -p tsconfig.json --noEmit"
+    },
   "dependencies": {
     "@google/genai": "^1.44.0",
     "@workspace/api-zod": "workspace:*",
@@ -16,6 +16,7 @@
     "@workspace/integrations-gemini-ai": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
     "express": "^5",
     "pino": "^9",
